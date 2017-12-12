@@ -3,18 +3,11 @@ import os
 
 import numpy as np
 
-from build_tree import build_tree
+from build_tree import build_tree, unpickle
 from config import cfg
 
 DATA_DIR = 'cifar-100-python/'
 batch_size = cfg.batch_size
-
-
-def unpickle(file):
-    import cPickle as pickle
-    with open(file, 'rb') as fo:
-        dict = pickle.load(fo)
-    return dict
 
 
 train_set = unpickle(os.path.abspath(DATA_DIR + 'train'))

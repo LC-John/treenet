@@ -1,8 +1,26 @@
 import os
 
+import sys
+
 from config import cfg
 
 batch_size = cfg.batch_size
+
+
+def unpickle(file):
+    if (2, 7) <= sys.version_info < (3,):
+        specify_encoding = False
+        import cPickle as pickle
+    else:
+        specify_encoding = True
+        import pickle
+
+    with open(file, 'rb') as fo:
+        if specify_encoding:
+            dict = pickle.load(fo, encoding='bytes')
+        else:
+            dict = pickle.load(fo)
+    return dict
 
 
 def build_tree():
@@ -53,12 +71,6 @@ def build_tree():
     being_animal_vertebrates_mammals_carnivore_felid = []
     being_animal_vertebrates_mammals_rodent = []
     being_animal_vertebrates_reptiles = []
-
-    def unpickle(file):
-        import cPickle as pickle
-        with open(file, 'rb') as fo:
-            dict = pickle.load(fo)
-        return dict
 
     train_meta = unpickle(os.path.abspath('cifar-100-python/meta'))
     train_labels_names = train_meta[b'fine_label_names']
