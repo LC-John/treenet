@@ -35,12 +35,16 @@ test_labels = test_set[b'fine_labels']
 train_labels_names = train_meta[b'fine_label_names']
 
 
-def get_batches(stage_arr=None, train=True):
-    stage_lists, stage_labels = get_stage_lists(build_tree(), [[], [], [], [], [], []], [[], [], [], [], [], []])
+def get_batches(train=True):
+    stage_lists, stage_labels = get_stage_lists(build_tree(),
+                                                [[], [], [], [], [], []],
+                                                [[], [], [], [], [], []])
+
     if train:
         rel_indices = get_images(train_images, train_labels)
     else:
         rel_indices = get_images(test_images, test_labels)
+
     stage_batches = []
     batch_lab_arrs = []
     for n in range(len(stage_lists)):
@@ -64,14 +68,12 @@ def get_batches(stage_arr=None, train=True):
         batches = []
         num_batches = int(max_length * 500 / float(batch_size)) * 2
         for j in range(num_batches):
-            order = np.arange(len(stage_list))
-            np.random.shuffle(order)
             batch_images = []
             start = 0
             end = start + class_size
             diff = batch_size - class_size * len(stage_list)
             for i in range(len(stage_list)):
-                while diff > 0:
+                if diff > 0:
                     end += 1
                     diff -= 1
                 np.random.shuffle(sample_set[i])
@@ -101,11 +103,13 @@ def get_stage_lists(parent_list, stage_list, label_list, prev_index=[], depth=-1
         label_list[depth].append(curr_index)
     else:
         curr_index = prev_index
+
     if len(parent_list) == 1:
         return
+
     for i in range(len(parent_list)):
-        get_stage_lists(parent_list[i], stage_list, label_list, prev_index=curr_index,
-                        depth=depth + 1)
+        get_stage_lists(parent_list[i], stage_list, label_list,
+                        prev_index=curr_index, depth=depth + 1)
 
     return stage_list, label_list
 
@@ -120,6 +124,9 @@ def get_images(images, labels):
     return class_indices
 
 
-batches = get_batches()
-for i in range(6):
-    print(batches[2][0][1][0].shape)
+if __name__ == '__main__':
+    stage_lists, stage_labels = get_stage_lists(build_tree(),
+                                                [[], [], [], [], [], [], []],
+                                                [[], [], [], [], [], [], []])
+
+    print stage_lists
