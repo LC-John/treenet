@@ -45,6 +45,9 @@ class TreeNet(object):
                                 tf.argmax(self.Y_6, axis=1))
         self.accuracy_6 = tf.reduce_mean(tf.cast(self.preds_6, dtype=tf.float32))
 
+        self.accuracies = [self.accuracy_1, self.accuracy_2, self.accuracy_3,
+                           self.accuracy_4, self.accuracy_5, self.accuracy_6]
+
     def predict(self):
         x = tf.reshape(self.X, shape=[-1, 3, 32, 32])
         x = tf.transpose(x, (0, 2, 3, 1))

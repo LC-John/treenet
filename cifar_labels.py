@@ -5,21 +5,14 @@ import numpy as np
 
 from build_tree import build_tree
 from config import cfg
+from util import *
 
-DATA_DIR = 'cifar-100-python/'
+data_path = 'cifar-100-python/'
 batch_size = cfg.batch_size
 
-
-def unpickle(file):
-    import cPickle as pickle
-    with open(file, 'rb') as fo:
-        dict = pickle.load(fo)
-    return dict
-
-
-train_set = unpickle(os.path.abspath(DATA_DIR + 'train'))
-train_meta = unpickle(os.path.abspath(DATA_DIR + 'meta'))
-test_set = unpickle(os.path.abspath(DATA_DIR + 'test'))
+train_set = unpickle(os.path.abspath(data_path + 'train'))
+train_meta = unpickle(os.path.abspath(data_path + 'meta'))
+test_set = unpickle(os.path.abspath(data_path + 'test'))
 
 train_images = train_set[b'data']
 train_labels = train_set[b'fine_labels']
@@ -29,16 +22,11 @@ filenames = train_set[b'filenames']
 test_images = test_set[b'data']
 test_labels = test_set[b'fine_labels']
 
-# train_images = np.reshape(train_images, (50000, 3, 32, 32))
-# train_images = np.transpose(train_images, (0, 2, 3, 1))
-
 train_labels_names = train_meta[b'fine_label_names']
 
 
 def get_batches(train=True):
-    stage_lists, stage_labels = get_stage_lists(build_tree(),
-                                                [[], [], [], [], [], [], []],
-                                                [[], [], [], [], [], [], []])
+    stage_lists, stage_labels = get_stage_lists(build_tree(), [[]] * 7, [[]] * 7)
 
     if train:
         rel_indices = get_images(train_images, train_labels)
@@ -92,19 +80,10 @@ def get_batches(train=True):
     return stage_batches
 
 
-def flatten_list(nested_list, curr_list):
-    if type(nested_list) is not list:
-        curr_list.append(nested_list)
-        return
-    for item in nested_list:
-        flatten_list(item, curr_list)
-    return curr_list
-
-
 def get_stage_lists(parent_list, stage_list, label_list, prev_index=[], depth=-1):
     if depth >= 0:
         curr_index = prev_index + [len(stage_list[depth])]
-        stage_list[depth].append(flatten_list(parent_list, []))
+        stage_list[depth].append(flatten(parent_list))
         label_list[depth].append(curr_index)
     else:
         curr_index = prev_index
