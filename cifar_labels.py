@@ -37,8 +37,8 @@ train_labels_names = train_meta[b'fine_label_names']
 
 def get_batches(train=True):
     stage_lists, stage_labels = get_stage_lists(build_tree(),
-                                                [[], [], [], [], [], []],
-                                                [[], [], [], [], [], []])
+                                                [[], [], [], [], [], [], []],
+                                                [[], [], [], [], [], [], []])
 
     if train:
         rel_indices = get_images(train_images, train_labels)
@@ -47,15 +47,18 @@ def get_batches(train=True):
 
     stage_batches = []
     batch_lab_arrs = []
+
     for n in range(len(stage_lists)):
         lab_arr = np.zeros((batch_size, len(stage_lists[n])))
         batch_lab_arrs.append(copy.deepcopy(lab_arr))
+
     for n in range(len(stage_lists)):
         batch_labels = copy.deepcopy(batch_lab_arrs)
         sample_set = []
         stage_list = stage_lists[n]
         stage_label = stage_labels[n]
         max_length = 1
+
         for i in range(len(stage_list)):
             if len(stage_list[i]) > max_length:
                 max_length = len(stage_list[i])
@@ -67,6 +70,7 @@ def get_batches(train=True):
         class_size = int(np.floor(batch_size / n_list_items))
         batches = []
         num_batches = int(max_length * 500 / float(batch_size)) * 2
+
         for j in range(num_batches):
             batch_images = []
             start = 0
@@ -84,6 +88,7 @@ def get_batches(train=True):
                 end += class_size
             batches.append((np.asarray(batch_images), batch_labels))
         stage_batches.append(batches)
+
     return stage_batches
 
 
@@ -125,8 +130,4 @@ def get_images(images, labels):
 
 
 if __name__ == '__main__':
-    stage_lists, stage_labels = get_stage_lists(build_tree(),
-                                                [[], [], [], [], [], [], []],
-                                                [[], [], [], [], [], [], []])
-
-    print stage_lists
+    batches = get_batches()
