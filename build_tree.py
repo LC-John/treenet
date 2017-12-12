@@ -137,11 +137,11 @@ def build_tree():
             being_animal_vertebrates_mammals_carnivore.append([i])
         elif name in [b'crocodile', b'dinosaur', b'lizard', b'snake', b'turtle']:
             being_animal_vertebrates_reptiles.append([i])
-        elif name in ['wolf', 'fox']:
+        elif name in [b'wolf', b'fox']:
             being_animal_vertebrates_mammals_carnivore_canid.append([i])
-        elif name in ['lion', 'tiger', 'leopard']:
+        elif name in [b'lion', b'tiger', b'leopard']:
             being_animal_vertebrates_mammals_carnivore_felid.append([i])
-        elif name in ['ray', 'shark']:
+        elif name in [b'ray', b'shark']:
             being_animal_aquatic_fish_el.append([i])
 
         else:

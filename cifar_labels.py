@@ -89,6 +89,13 @@ def get_batches(train=True):
             batches.append((np.asarray(batch_images), batch_labels))
         stage_batches.append(batches)
 
+    # Make sure one hot encoding is in place
+    for stage_num in range(len(stage_batches)):
+        fifth_mini_batch = stage_batches[stage_num][4]
+        _, y_5 = fifth_mini_batch
+        for layer in range(stage_num + 1):
+            assert((np.sum(y_5[layer], axis=1, keepdims=True) == np.ones((batch_size, 1))).all())
+
     return stage_batches
 
 
