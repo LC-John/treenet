@@ -20,9 +20,9 @@ class TreeLayer(object):
         with tf.variable_scope('tree_layer' + str(self.stage)):
             primary_caps = Conv2DtoCaps(num_primary_caps, primary_caps_dim, self.stage)
             caps_1 = primary_caps(self.image, self.prev_layer_caps)
-            secondary_caps = CapstoCaps(n_outputs, secondary_caps_dim, num_primary_caps * cfg.area, primary_caps_dim,
-                                        self.stage)
-            caps_2, full_caps = secondary_caps(caps_1)
+            secondary_caps = CapstoCaps(n_outputs, secondary_caps_dim, num_primary_caps * cfg.area,
+                                        primary_caps_dim, self.stage)
+            caps_2 = secondary_caps(caps_1)
             probs = tf.sqrt(tf.reduce_sum(tf.square(caps_2), axis=2, keep_dims=True) + cfg.epsilon)
 
             layer_loss = margin_loss(probs, self.labels, n_outputs)
@@ -33,7 +33,9 @@ class TreeLayer(object):
 def margin_loss(probs, labels, n_outputs):
     correct_class = tf.square(tf.maximum(0., cfg.m_plus - probs))
     other_classes = cfg.lambd * tf.square(tf.maximum(0., probs - cfg.m_minus))
-    loss = labels * tf.reshape(correct_class, [cfg.batch_size, n_outputs]) + (1 - labels) * tf.reshape(other_classes,
-                                                                                                       [cfg.batch_size,
-                                                                                                        n_outputs])
+
+    correct_class = tf.reshape(correct_class, [cfg.batch_size, n_outputs])
+    other_classes = tf.reshape(other_classes, [cfg.batch_size, n_outputs])
+
+    loss = labels * correct_class + (1 - labels) * other_classes
     return tf.reduce_mean(tf.reduce_sum(loss, axis=1))

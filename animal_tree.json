@@ -1,0 +1,77 @@
+{
+  "animal": {
+    "vertebrates": {
+      "mammals": {
+        "camel": null,
+        "cattle": null,
+        "chimpanzee": null,
+        "elephant": null,
+        "carnivore": {
+          "bear": null,
+          "raccoon": null,
+          "skunk": null,
+          "canid": {
+            "wolf": null,
+            "fox": null
+          },
+          "felid": {
+            "lion": null,
+            "tiger": null,
+            "leopard": null
+          }
+        },
+        "marsupial": {
+          "kangaroo": null,
+          "possum": null
+        },
+        "rodent": {
+          "beaver": null,
+          "porcupine": null,
+          "hamster": null,
+          "mouse": null,
+          "shrew": null,
+          "squirrel": null,
+          "rabbit": null
+        }
+      },
+      "reptiles": {
+        "crocodile": null,
+        "dinosaur": null,
+        "lizard": null,
+        "snake": null,
+        "turtle": null
+      }
+    },
+    "invertebrates": {
+      "crab": null,
+      "lobster": null,
+      "snail": null,
+      "spider": null,
+      "worm": null,
+      "insects": {
+        "bee": null,
+        "beetle": null,
+        "butterfly": null,
+        "caterpillar": null,
+        "cockroach": null
+      }
+    },
+    "aquatic": {
+      "fish": {
+        "aquarium_fish": null,
+        "flatfish": null,
+        "trout": null,
+        "elasmobranch": {
+          "ray": null,
+          "shark": null
+        }
+      },
+      "aquatic_mammals": {
+        "dolphin": null,
+        "whale": null,
+        "otter": null,
+        "seal": null
+      }
+    }
+  }
+}

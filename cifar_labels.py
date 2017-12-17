@@ -1,37 +1,39 @@
 import copy
-import os
 
 import numpy as np
 
-from build_tree import build_tree
 from config import cfg
-from util import *
+from tree_util import *
 
-data_path = 'cifar-100-python/'
+np.set_printoptions(threshold=np.nan)
+
+DATA_DIR = 'cifar-100-python/'
 batch_size = cfg.batch_size
 
-train_set = unpickle(os.path.abspath(data_path + 'train'))
-train_meta = unpickle(os.path.abspath(data_path + 'meta'))
-test_set = unpickle(os.path.abspath(data_path + 'test'))
 
-train_images = train_set[b'data']
-train_labels = train_set[b'fine_labels']
-coarse_labels = train_set[b'coarse_labels']
-filenames = train_set[b'filenames']
+# noinspection PyShadowingNames
+def get_test_batches():
+    test_set = unpickle(DATA_DIR + 'test')
+    test_images = test_set['data']
+    test_labels = test_set['fine_labels']
 
-test_images = test_set[b'data']
-test_labels = test_set[b'fine_labels']
+    batches = []
+    for i in range(0, 10000, batch_size):
+        if i <= 10000 - batch_size:
+            img_batch = test_images[i:i + batch_size]
+            lab_batch = test_labels[i:i + batch_size]
+            batches.append((img_batch, lab_batch))
 
-train_labels_names = train_meta[b'fine_label_names']
+    return batches
 
 
-def get_batches(train=True):
-    stage_lists, stage_labels = get_stage_lists(build_tree(), [[]] * 7, [[]] * 7)
+# noinspection PyShadowingNames
+def get_batches(tree, train=True):
+    stage_lists = get_leaves_per_level(tree)
+    stage_labels = get_path_to_labels(tree)
 
-    if train:
-        rel_indices = get_images(train_images, train_labels)
-    else:
-        rel_indices = get_images(test_images, test_labels)
+    data_set = unpickle(DATA_DIR + ('train' if train else 'test'))
+    rel_indices = get_images(data_set['data'], data_set['fine_labels'])
 
     stage_batches = []
     batch_lab_arrs = []
@@ -41,79 +43,114 @@ def get_batches(train=True):
         batch_lab_arrs.append(copy.deepcopy(lab_arr))
 
     for n in range(len(stage_lists)):
-        batch_labels = copy.deepcopy(batch_lab_arrs)
         sample_set = []
+        sample_set_labels = []
+        batch_order = []
         stage_list = stage_lists[n]
-        stage_label = stage_labels[n]
         max_length = 1
 
+        n_lists = len(stage_list)
+
         for i in range(len(stage_list)):
-            if len(stage_list[i]) > max_length:
-                max_length = len(stage_list[i])
             set = []
+            set_labels = []
+
             for index in stage_list[i]:
-                set += rel_indices[str(index)]
+                set += rel_indices[index]
+                set_labels += [stage_labels[index][0:n + 1]] * 500
+
+            sample_set_labels.append(copy.deepcopy(set_labels))
             sample_set.append(copy.deepcopy(set))
-        n_list_items = float(len(stage_list))
-        class_size = int(np.floor(batch_size / n_list_items))
+
+            batch_order.append(np.arange(len(sample_set[i])))
+            np.random.shuffle(batch_order[i])
+
+            if len(sample_set[i]) >= max_length:
+                max_length = len(sample_set[i])
+                max_arg = i
+
+        class_size = int(np.ceil(batch_size / len(sample_set)))
+
+        for i in range(n_lists):
+            batch_order[i] = np.tile(batch_order[i], int(np.ceil(max_length / float(len(batch_order[i])))))
+
+        class_order = []
         batches = []
-        num_batches = int(max_length * 500 / float(batch_size)) * 2
 
-        for j in range(num_batches):
-            batch_images = []
-            start = 0
-            end = start + class_size
-            diff = batch_size - class_size * len(stage_list)
-            for i in range(len(stage_list)):
-                if diff > 0:
-                    end += 1
-                    diff -= 1
-                np.random.shuffle(sample_set[i])
-                batch_images += sample_set[i][0:end - start]
-                for k in range(len(stage_label[i])):
-                    batch_labels[k][start:end, stage_label[i][k]] = 1
-                start = end
-                end += class_size
-            batches.append((np.asarray(batch_images), batch_labels))
-        stage_batches.append(batches)
+        for i in range(0, max_length * len(sample_set), class_size * n_lists):
+            for j in range(n_lists):
+                class_order += [j] * class_size
 
-    # Make sure one hot encoding is in place
-    for stage_num in range(len(stage_batches)):
-        fifth_mini_batch = stage_batches[stage_num][4]
-        _, y_5 = fifth_mini_batch
-        for layer in range(stage_num + 1):
-            assert((np.sum(y_5[layer], axis=1, keepdims=True) == np.ones((batch_size, 1))).all())
+        curr_class_img = np.zeros(n_lists, dtype=np.int32)
+        current = 0
+        done = False
+
+        while not done:
+            images = []
+            batch_labels = copy.deepcopy(batch_lab_arrs)
+            for j in range(batch_size):
+                curr_class = class_order[current]
+                curr_batch_img = batch_order[curr_class][curr_class_img[curr_class]]
+                images.append(sample_set[curr_class][curr_batch_img])
+                for k in range(len(sample_set_labels[curr_class][curr_batch_img])):
+                    batch_labels[k][j, sample_set_labels[curr_class][curr_batch_img][k]] = 1
+                current += 1
+                curr_class_img[curr_class] += 1
+                if curr_class_img[curr_class] == max_length:
+                    if curr_class == max_arg:
+                        final_imgs = batch_order[curr_class][int(max_length - (batch_size - len(images))):max_length]
+                        final_index = j + 1
+                        for img in final_imgs:
+                            images.append(sample_set[curr_class][img])
+                            for k in range(len(sample_set_labels[curr_class][img])):
+                                batch_labels[k][final_index, sample_set_labels[curr_class][img][k]] = 1
+                            final_index += 1
+                        done = True
+                        break
+                    curr_class_img[curr_class] = 0
+            batches.append((np.asarray(images), copy.deepcopy(batch_labels)))
+
+        stage_batches.append(copy.deepcopy(batches))
 
     return stage_batches
 
 
-def get_stage_lists(parent_list, stage_list, label_list, prev_index=[], depth=-1):
-    if depth >= 0:
-        curr_index = prev_index + [len(stage_list[depth])]
-        stage_list[depth].append(flatten(parent_list))
-        label_list[depth].append(curr_index)
-    else:
-        curr_index = prev_index
-
-    if len(parent_list) == 1:
-        return
-
-    for i in range(len(parent_list)):
-        get_stage_lists(parent_list[i], stage_list, label_list,
-                        prev_index=curr_index, depth=depth + 1)
-
-    return stage_list, label_list
-
-
+# noinspection PyShadowingNames
 def get_images(images, labels):
-    class_indices = {}
+    result = [[] for _ in range(100)]
     for i in range(len(labels)):
-        if str(labels[i]) in class_indices:
-            class_indices[str(labels[i])].append(images[i])
-        else:
-            class_indices[str(labels[i])] = [images[i]]
-    return class_indices
+        result[labels[i]].append(images[i])
+    return result
 
 
-if __name__ == '__main__':
-    batches = get_batches()
+# noinspection PyShadowingNames
+def get_predictions(tree, probabilities):
+    n = len(probabilities[0])
+    queue = deque([tree])
+    predictions = deque([np.zeros((n, 0))])
+    result = np.zeros((n, 100))
+    level = 0
+
+    while queue:
+        count = 0
+        for i in range(len(queue)):
+            node = queue.popleft()
+            prior = predictions.popleft()
+            if not node.children:
+                result[:, node.true_label] = np.mean(prior, axis=1)
+                continue
+            for child in node.children:
+                queue.append(child)
+                prediction = np.c_[prior, probabilities[level][:, count]]
+                predictions.append(prediction)
+                count += 1
+        level += 1
+
+    return result
+
+
+# noinspection PyShadowingNames
+def get_accuracy(predictions, test_labels):
+    predictions = np.argmax(predictions, axis=1)
+    acc = [int(predictions[i] == test_labels[i]) for i in range(batch_size)]
+    return np.mean(acc)

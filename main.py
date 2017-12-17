@@ -2,90 +2,137 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
-from cifar_labels import get_batches
+from tree_util import build_tree
+from cifar_labels import get_batches, get_test_batches, get_predictions, get_accuracy
 from treenet import TreeNet
 
-MAX_ITER = 6000
+ACCURACY_SAVE_FORMAT = 'plots/accuracy/plot_%s.jpeg'
+LOSS_SAVE_FORMAT = 'plots/loss/plot_%s.jpeg'
 
 
-def train():
-    # Construct model
+def build_model(n_classes):
     X = tf.placeholder(dtype=tf.float32, shape=[None, 32 * 32 * 3])
-    Y_1 = tf.placeholder(dtype=tf.float32, shape=[None, 6])
-    Y_2 = tf.placeholder(dtype=tf.float32, shape=[None, 12])
-    Y_3 = tf.placeholder(dtype=tf.float32, shape=[None, 33])
-    Y_4 = tf.placeholder(dtype=tf.float32, shape=[None, 34])
-    Y_5 = tf.placeholder(dtype=tf.float32, shape=[None, 25])
-    Y_6 = tf.placeholder(dtype=tf.float32, shape=[None, 12])
+    Y = [tf.placeholder(dtype=tf.float32, shape=[None, n]) for n in n_classes]
+    return TreeNet(X, Y)
 
-    tree_depth = tf.placeholder(dtype=tf.int32)
-    model = TreeNet(X, Y_1, Y_2, Y_3, Y_4, Y_5, Y_6, tree_depth)
 
-    # Train model
+def train(model, batches, restore=None,
+          save=True, plot=True, verbose=True):
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-
-        batches = get_batches()
         saver = tf.train.Saver()
 
+        if restore:
+            saver.restore(sess, restore)
+            print("Model restored.")
+
+        if verbose:
+            plt.ion()
+            plt.show()
+            for i in range(len(batches)):
+                print('Batch {} size is {}'.format(i, len(batches[i])))
+
         losses = []
-        accuracies = [[]] * tree_depth
-
-        plt.ion()
-        plt.show()
-
+        accuracies = [[]] * model.depth
         count = 0
-        for i in range(MAX_ITER):
-            print('Iteration :{}'.format(i))
 
-            # Stage specific code
-            stage = i / 1000
-            batch = batches[stage]
+        n_iter_per_level = [5000] * model.depth
+        save_frequencies = [100, 1000, 2500, 5000, 10000]
+        plot_frequency = 100
 
-            fetches = [model.train_op, model.total_loss]
-            fetches += model.accuracies[:stage + 1]
-            results = sess.run(fetches, feed_dict={X: batch[count][0],
-                                                   Y_1: batch[count][1][0],
-                                                   Y_2: batch[count][1][1],
-                                                   Y_3: batch[count][1][2],
-                                                   Y_4: batch[count][1][3],
-                                                   Y_5: batch[count][1][4],
-                                                   Y_6: batch[count][1][5],
-                                                   tree_depth: stage + 1})
-            batch_loss = results[1]
-            batch_accuracies = results[2:]
+        # Training loop
+        try:
+            for level, n_iter in enumerate(n_iter_per_level):
+                for i in range(n_iter):
+                    fetches = [model.train_ops[level], model.losses[level]]
+                    fetches += model.accuracies[:level + 1]
 
-            losses.append(batch_loss)
-            print('Loss :{}'.format(batch_loss))
-            for j in range(stage + 1):
-                accuracies[j].append(batch_accuracies[j])
-                print('Layer 1 Accuracy: {}'.format(batch_accuracies[j]))
+                    batch = batches[level][i % len(batches[level])]
 
-            plot_accs = batch_accuracies[-1]
-            count = (count + 1) % len(batch)
+                    feed_dict = {model.X: batch[0]}
+                    for j in range(level + 1):
+                        feed_dict[model.Y[j]] = batch[1][j]
 
-            # Save model and print results
-            if i % 250 == 0:
-                save_path = saver.save(sess, 'save/model.cpkt')
-                print("Model saved in file: %s" % save_path)
+                    stats = sess.run(fetches, feed_dict=feed_dict)
 
-            if i % 50 == 0:
-                plt.figure(1)
-                plt.plot(losses)
+                    # Save model
+                    if save:
+                        for k in save_frequencies:
+                            if count % k == 0:
+                                save_path = saver.save(sess, 'saves/model_{}.cpkt'.format(k))
+                                print("Model saved in file: %s" % save_path)
 
-                plt.figure(2)
-                plt.plot(plot_accs)
-                plt.yticks(np.arange(0, 1.05, 0.05))
+                    # Print and plot
+                    if verbose:
+                        print('\nStage {}, i: {}'.format(level, i))
+                        batch_loss = stats[1]
+                        losses.append(batch_loss)
+                        print('Loss: {}'.format(batch_loss))
 
-                plt.draw()
-                plt.pause(0.001)
+                        for j, acc in enumerate(stats[2:]):
+                            accuracies[j].append(acc)
+                            print('Layer {} Accuracy: {}'.format(j + 1, acc))
 
-            if i == MAX_ITER:
-                plt.show()
+                        # Plot accuracy and error
+                        if plot and count % plot_frequency == 0:
+                            _plot(accuracies[-1], i, losses)
+
+                    count += 1
+
+        except KeyboardInterrupt:
+            if save:
+                if verbose:
+                    print 'Received keyboard interrupt: saving model...'
+                saver.save(sess, 'saves/model_final.cpkt')
+
+
+def test(model, tree, save_path):
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        saver = tf.train.Saver()
+
+        saver.restore(sess, save_path)
+        print("Model restored.")
+
+        test_batches = get_test_batches()
+        test_accs = []
+
+        print(len(test_batches))
+
+        for batch in test_batches:
+            probabilities = sess.run(model.probabilities, feed_dict={model.X: batch[0]})
+            acc = get_accuracy(get_predictions(tree, probabilities), batch[1])
+            test_accs.append(acc)
+            print(acc)
+
+        print(np.mean(test_accs))
+
+
+def _plot(accuracies, iteration, losses):
+    plt.figure(1)
+    plt.plot(accuracies)
+    plt.yticks(np.arange(0, 1.05, 0.05))
+    plt.title('Training Accuracy')
+    plt.xlabel('Number of Iterations')
+    plt.ylabel('Batch Accuracy')
+    plt.savefig(ACCURACY_SAVE_FORMAT % str(iteration), format='png')
+
+    plt.figure(2)
+    plt.plot(losses)
+    plt.title('Loss')
+    plt.xlabel('Number of Iterations')
+    plt.ylabel('Batch Loss')
+    plt.savefig(LOSS_SAVE_FORMAT % str(iteration), format='png')
+
+    plt.draw()
+    plt.pause(0.001)
 
 
 def main(_):
-    train()
+    tree, n_classes = build_tree('animal_tree.json')
+    model = build_model(n_classes)
+    train_batches = get_batches(tree)
+    train(model, train_batches, save=False, plot=False)
 
 
 if __name__ == '__main__':
